@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stockholm Replay</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; font-family: system-ui, sans-serif; background: #0d1117; color: #e2e8f0; }
+    body { display: flex; flex-direction: column; }
+
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 16px; flex-shrink: 0;
+      background: #161b22; border-bottom: 1px solid #30363d;
+    }
+    header h1 { font-size: 1rem; font-weight: 600; color: #e2e8f0; flex: 1; }
+
+    /* Info button in header */
+    #btn-help {
+      padding: 4px 10px; font-size: 0.78rem;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 20px; color: #8b949e; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    #btn-help:hover { background: #30363d; color: #e2e8f0; border-color: #8b949e; }
+
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #map  { flex: 1; }
+
+    /* ── Right panel ── */
+    #panel {
+      width: 210px; flex-shrink: 0;
+      background: #161b22; border-left: 1px solid #30363d;
+      display: flex; flex-direction: column;
+      padding: 14px 12px; gap: 14px;
+      overflow-y: auto;
+    }
+
+    /* Big clock */
+    #time-clock {
+      text-align: center; background: #0d1117;
+      border: 1px solid #30363d; border-radius: 8px;
+      padding: 12px 8px 8px;
+    }
+    #time-day  { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6e7681; margin-bottom: 4px; }
+    #time-hms  {
+      font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em; color: #e2e8f0;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    #time-snap { font-size: 0.68rem; color: #6e7681; margin-top: 5px; }
+    #vehicle-count { font-size: 0.72rem; color: #8b949e; text-align: center; }
+
+    .panel-label {
+      font-size: 0.65rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #6e7681; margin-bottom: 5px;
+    }
+
+    /* Dataset */
+    .dataset-btns { display: flex; flex-direction: column; gap: 6px; }
+    .dataset-btn {
+      padding: 6px 10px; font-size: 0.8rem; border-radius: 6px;
+      border: 1px solid #30363d; background: #21262d; color: #8b949e;
+      cursor: pointer; transition: all 0.15s; text-align: center;
+    }
+    .dataset-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+    .dataset-btn:hover:not(.active) { background: #30363d; color: #e2e8f0; }
+
+    /* Scrubber */
+    #scrubber { width: 100%; cursor: pointer; accent-color: #388bfd; }
+
+    /* Playback */
+    .ctrl-row { display: flex; gap: 4px; justify-content: center; }
+    .ctrl-btn {
+      flex: 1; padding: 6px 4px; font-size: 0.9rem;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 6px; color: #c9d1d9; cursor: pointer;
+    }
+    .ctrl-btn:hover { background: #30363d; }
+    #btn-play { font-size: 1.1rem; }
+
+    /* Speed */
+    .speed-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+    .speed-btn {
+      flex: 1; min-width: 36px; padding: 4px 2px; font-size: 0.72rem; text-align: center;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 4px; color: #8b949e; cursor: pointer;
+    }
+    .speed-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+    .speed-btn:hover:not(.active) { background: #30363d; color: #e2e8f0; }
+
+    /* Vehicle type filters */
+    .type-filters { display: flex; flex-direction: column; gap: 5px; }
+    .type-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 3px 6px; border-radius: 5px; cursor: pointer;
+      transition: background 0.12s;
+    }
+    .type-row:hover { background: rgba(255,255,255,0.05); }
+    .type-row input { cursor: pointer; accent-color: #fff; }
+    .type-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .type-swatch.circle { border-radius: 50%; }
+    .type-swatch.diamond { transform: rotate(45deg); }
+    .type-label { font-size: 0.78rem; flex: 1; }
+
+    /* Trails + tools */
+    .tool-row { display: flex; gap: 6px; }
+    .tool-btn {
+      flex: 1; padding: 5px 4px; font-size: 0.72rem; text-align: center;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 5px; color: #8b949e; cursor: pointer;
+    }
+    .tool-btn:hover { background: #30363d; color: #e2e8f0; }
+    .tool-btn.active { background: #14532d; border-color: #16a34a; color: #86efac; }
+    .tool-btn.danger  { }
+    .tool-btn.danger:hover { background: #7f1d1d; border-color: #dc2626; color: #fca5a5; }
+
+    /* PNG download */
+    #btn-png {
+      width: 100%; padding: 7px 4px; font-size: 0.78rem;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 6px; color: #8b949e; cursor: pointer;
+      transition: all 0.15s;
+    }
+    #btn-png:hover { background: #1f3a5f; border-color: #388bfd; color: #93c5fd; }
+
+    /* Loading overlay */
+    #loading {
+      position: absolute; inset: 0; z-index: 9000;
+      background: rgba(13,17,23,0.9);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+    }
+    #loading-text { font-size: 1rem; color: #c9d1d9; }
+    #loading-bar-wrap { width: 260px; height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; }
+    #loading-bar { height: 100%; width: 0%; background: #388bfd; transition: width 0.1s; }
+    #loading.hidden { display: none; }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid #21262d; margin: 0; }
+
+    /* ── Help modal ── */
+    #help-overlay {
+      position: fixed; inset: 0; z-index: 9900;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    #help-overlay.hidden { display: none; }
+    #help-modal {
+      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      width: 100%; max-width: 560px; max-height: 90vh;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    #help-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid #30363d; flex-shrink: 0;
+    }
+    #help-header h2 { font-size: 1rem; font-weight: 600; color: #e2e8f0; }
+    #btn-help-close {
+      background: none; border: none; color: #6e7681; font-size: 1.3rem;
+      cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+    }
+    #btn-help-close:hover { background: #21262d; color: #e2e8f0; }
+    #help-body {
+      overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .help-section-title {
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #388bfd; margin-bottom: 8px; font-weight: 600;
+    }
+    .help-row {
+      display: flex; gap: 10px; align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .help-icon {
+      font-size: 1rem; width: 22px; flex-shrink: 0;
+      text-align: center; margin-top: 1px;
+    }
+    .help-text { font-size: 0.82rem; color: #c9d1d9; line-height: 1.5; }
+    .help-text strong { color: #e2e8f0; }
+    .help-note {
+      font-size: 0.75rem; color: #6e7681; line-height: 1.5;
+      background: #0d1117; border: 1px solid #21262d;
+      border-radius: 6px; padding: 10px 12px;
+    }
+    .help-shapes {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px;
+    }
+    .help-shape-item {
+      display: flex; align-items: center; gap: 6px; font-size: 0.76rem; color: #8b949e;
+    }
+    .hs { display: inline-block; width: 14px; height: 14px; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Stockholm Replay</h1>
+    <button id="btn-help">ℹ How to use</button>
+  </header>
+
+  <div id="main">
+    <div style="position:relative; flex:1; display:flex;">
+      <div id="map" style="flex:1;"></div>
+      <div id="loading">
+        <div id="loading-text">Loading 14 Apr…</div>
+        <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
+      </div>
+    </div>
+
+    <div id="panel">
+
+      <!-- Clock -->
+      <div id="time-clock">
+        <div id="time-day">—</div>
+        <div id="time-hms">--:--:--</div>
+        <div id="time-snap">snapshot — / —</div>
+      </div>
+      <div id="vehicle-count">— vehicles</div>
+
+      <hr class="divider"/>
+
+      <!-- Dataset -->
+      <div>
+        <div class="panel-label">Dataset</div>
+        <div class="dataset-btns">
+          <button class="dataset-btn active" data-day="20260414">Tue 14 Apr</button>
+        </div>
+      </div>
+
+      <hr class="divider"/>
+
+      <!-- Timeline -->
+      <div>
+        <div class="panel-label">Timeline</div>
+        <input type="range" id="scrubber" min="0" max="0" value="0" />
+      </div>
+
+      <!-- Playback -->
+      <div>
+        <div class="panel-label">Playback</div>
+        <div class="ctrl-row">
+          <button class="ctrl-btn" id="btn-start" title="Jump to start">⏮</button>
+          <button class="ctrl-btn" id="btn-prev"  title="Previous snapshot">◀</button>
+          <button class="ctrl-btn" id="btn-play"  title="Play / Pause">▶</button>
+          <button class="ctrl-btn" id="btn-next"  title="Next snapshot">▶</button>
+          <button class="ctrl-btn" id="btn-end"   title="Jump to end">⏭</button>
+        </div>
+      </div>
+
+      <!-- Speed -->
+      <div>
+        <div class="panel-label">Speed</div>
+        <div class="speed-btns">
+          <button class="speed-btn"        data-speed="1">1×</button>
+          <button class="speed-btn"        data-speed="5">5×</button>
+          <button class="speed-btn active" data-speed="10">10×</button>
+          <button class="speed-btn"        data-speed="30">30×</button>
+          <button class="speed-btn"        data-speed="60">60×</button>
+        </div>
+      </div>
+
+      <hr class="divider"/>
+
+      <!-- Vehicle type filters -->
+      <div>
+        <div class="panel-label">Show vehicles</div>
+        <div class="type-filters">
+          <label class="type-row">
+            <input type="checkbox" checked data-vtype="metro">
+            <span class="type-swatch circle" style="background:#60a5fa"></span>
+            <span class="type-label">Metro</span>
+          </label>
+          <label class="type-row">
+            <input type="checkbox" checked data-vtype="ferry">
+            <span class="type-swatch diamond" style="background:#22d3ee;border-radius:2px"></span>
+            <span class="type-label">Ferry</span>
+          </label>
+          <label class="type-row">
+            <input type="checkbox" checked data-vtype="train">
+            <span class="type-swatch diamond" style="background:#e879f9;border-radius:2px"></span>
+            <span class="type-label">Train</span>
+          </label>
+          <label class="type-row">
+            <input type="checkbox" checked data-vtype="tram">
+            <span class="type-swatch circle" style="background:#ff6b6b"></span>
+            <span class="type-label">Tram</span>
+          </label>
+          <label class="type-row">
+            <input type="checkbox" checked data-vtype="bus">
+            <span class="type-swatch" style="background:#f59e0b;border-radius:2px"></span>
+            <span class="type-label">Bus</span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="divider"/>
+
+      <!-- Corridor trails -->
+      <div>
+        <div class="panel-label">Corridor trails</div>
+        <div class="tool-row">
+          <button class="tool-btn" id="btn-trails" title="Toggle corridor painting">🖌 Paint</button>
+          <button class="tool-btn danger" id="btn-clear" title="Clear painted trails">🧹 Clear</button>
+        </div>
+      </div>
+
+      <hr class="divider"/>
+
+      <!-- PNG export -->
+      <button id="btn-png">⬇ Save as PNG</button>
+
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div id="help-overlay" class="hidden">
+    <div id="help-modal" role="dialog" aria-modal="true" aria-label="How to use Stockholm Replay">
+      <div id="help-header">
+        <h2>Stockholm Replay — How to use</h2>
+        <button id="btn-help-close" title="Close">✕</button>
+      </div>
+      <div id="help-body">
+
+        <div>
+          <div class="help-section-title">What is this?</div>
+          <div class="help-text">
+            Stockholm Replay lets you watch <strong>Stockholm public transit — tunnelbana, commuter trains, trams, and ferries</strong> — rewound to Tuesday 14 April 2026.
+            Snapshots were captured every 120 seconds, so one full day contains roughly 720 frames
+            covering midnight-to-midnight Stockholm time.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Dataset</div>
+          <div class="help-row">
+            <span class="help-icon">📅</span>
+            <div class="help-text">A single dataset: <strong>Tuesday 14 April 2026</strong>.
+            The recording downloads once and is kept in memory for instant scrubbing.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Playback controls</div>
+          <div class="help-row">
+            <span class="help-icon">⏮</span>
+            <div class="help-text"><strong>Jump to start</strong> — rewind to midnight (snapshot 1).</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">◀ ▶</span>
+            <div class="help-text"><strong>Step</strong> — move one snapshot (30 s of real time) backward or forward.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">▶⏸</span>
+            <div class="help-text"><strong>Play / Pause</strong> — start or stop automatic playback. The interval depends on the chosen speed.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">⏭</span>
+            <div class="help-text"><strong>Jump to end</strong> — skip to the last recorded snapshot.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">━●━</span>
+            <div class="help-text"><strong>Scrubber</strong> — drag to jump to any moment of the day instantly.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Playback speed</div>
+          <div class="help-text" style="margin-bottom:8px">
+            Speed multiplies how fast real time passes. Each tick advances 30 real seconds.
+          </div>
+          <div class="help-note">
+            1× = one tick every 30 s (real time) &nbsp;·&nbsp;
+            5× = one tick every 6 s &nbsp;·&nbsp;
+            10× = one tick every 3 s <em>(default)</em><br/>
+            30× = one tick per second &nbsp;·&nbsp;
+            60× = two ticks per second — full 24 h plays in ~24 min
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Vehicle types &amp; shapes</div>
+          <div class="help-text" style="margin-bottom:8px">Each vehicle type has a distinct shape and colour family:</div>
+          <div class="help-shapes">
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><polygon points="7,1 13,13 1,13" fill="#60a5fa" stroke="white" stroke-width="1"/></svg>
+              Metro (M1/M2)
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><polygon points="7,1 13,7 7,13 1,7" fill="#e879f9" stroke="white" stroke-width="1"/></svg>
+              Train (I/P lines)
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#ff6b6b" stroke="white" stroke-width="1"/></svg>
+              Tram
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="2" fill="#f59e0b" stroke="white" stroke-width="1"/></svg>
+              Bus
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#22d3ee" stroke="white" stroke-width="1"/></svg>
+              Ferry
+            </div>
+          </div>
+          <div class="help-text" style="margin-top:8px">
+            Use the checkboxes to show or hide individual types — useful when you want to focus on trams only,
+            for example, without the clutter of hundreds of buses.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Corridor trails (🖌 Paint)</div>
+          <div class="help-row">
+            <span class="help-icon">🖌</span>
+            <div class="help-text">
+              <strong>Paint</strong> — when active (green glow), every vehicle position is permanently
+              dot-painted onto an overlay canvas as playback advances. This reveals the full network
+              geometry: tram corridors, bus arteries, train lines. Dots accumulate across snapshots,
+              so the longer you play, the denser the map becomes.
+            </div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">🧹</span>
+            <div class="help-text">
+              <strong>Clear</strong> — wipes the corridor canvas completely so you can start a fresh
+              painting from a different time window, e.g. rush hour vs. night service.
+            </div>
+          </div>
+          <div class="help-note">
+            Tip: enable Paint, jump to 07:00 and let it run at 30× for 30 seconds — you'll see the
+            morning rush build up across the whole region.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Save as PNG</div>
+          <div class="help-row">
+            <span class="help-icon">⬇</span>
+            <div class="help-text">
+              Exports the current view — map tiles, corridor trails, and all visible vehicle markers —
+              as a PNG image. A <strong>Stockholm-time timestamp</strong> is watermarked in the bottom-left
+              corner. The filename encodes the dataset and snapshot number
+              (e.g. <code style="font-size:0.78rem;color:#8b949e">sto-replay-20260414-0842.png</code>).
+            </div>
+          </div>
+          <div class="help-note">
+            The file downloads automatically to your browser's Downloads folder — no dialog box appears.
+            If nothing happens after 3 seconds, check that your browser hasn't blocked automatic downloads
+            from this site.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">A note on train gaps</div>
+          <div class="help-text">
+            Airport trains (I and P lines) show <strong>gaps</strong> in the painted corridor near Pasila
+            and the airport tunnel — this is real: those trains lose GPS signal underground and stop
+            reporting to the feed entirely. Metro lines paint <em>without</em> gaps because HSL uses
+            track-based odometry for metro positioning, which works continuously even underground.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ── Map — CartoDB dark tiles (crossOrigin for PNG export) ────────────────
+    const map = L.map('map', { zoomControl: true }).setView([59.3301, 18.0582], 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors, © CARTO',
+      maxZoom: 19, crossOrigin: true,
+    }).addTo(map);
+    setTimeout(() => map.invalidateSize(), 100);
+
+    // ── Corridor canvas ───────────────────────────────────────────────────────
+    map.createPane('corridorPane');
+    map.getPane('corridorPane').style.zIndex       = 250;
+    map.getPane('corridorPane').style.pointerEvents = 'none';
+
+    const corridorCanvas = document.createElement('canvas');
+    corridorCanvas.style.pointerEvents = 'none';
+    map.getPane('corridorPane').appendChild(corridorCanvas);
+
+    const corridorPoints = [];
+    let   paintTrails    = false;
+
+    function _setupCorridorCanvas() {
+      const sz = map.getSize();
+      const tl = map.containerPointToLayerPoint([0, 0]);
+      L.DomUtil.setPosition(corridorCanvas, tl);
+      corridorCanvas.width  = sz.x;
+      corridorCanvas.height = sz.y;
+    }
+    function _ptOnCanvas(lat, lon) {
+      const lp  = map.latLngToLayerPoint([lat, lon]);
+      const pos = L.DomUtil.getPosition(corridorCanvas) || L.point(0, 0);
+      return lp.subtract(pos);
+    }
+    function drawCorridorPoint(lat, lon, color) {
+      if (!paintTrails) return;
+      const pt = _ptOnCanvas(lat, lon);
+      if (pt.x < -10 || pt.y < -10 || pt.x > corridorCanvas.width + 10 || pt.y > corridorCanvas.height + 10) return;
+      const ctx = corridorCanvas.getContext('2d');
+      ctx.globalAlpha = 0.33; ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    function redrawCorridor() {
+      _setupCorridorCanvas();
+      if (!corridorPoints.length) return;
+      const ctx = corridorCanvas.getContext('2d');
+      for (const p of corridorPoints) {
+        const pt = _ptOnCanvas(p.lat, p.lon);
+        if (pt.x < -10 || pt.y < -10 || pt.x > corridorCanvas.width + 10 || pt.y > corridorCanvas.height + 10) continue;
+        ctx.globalAlpha = 0.33; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    function clearCorridor() {
+      corridorPoints.length = 0;
+      _setupCorridorCanvas();
+    }
+    map.on('moveend zoomend resize', redrawCorridor);
+    _setupCorridorCanvas();
+
+    // ── Colors ───────────────────────────────────────────────────────────────
+    const LINE_COLORS  = { M1: '#60a5fa', M2: '#f87171' };
+    const FERRY_COLOR  = '#22d3ee';
+    const TRAIN_COLORS = { I: '#e879f9', P: '#60d6b4' };
+    const TRAM_COLORS  = {
+      '1':'#ff6b6b','1A':'#ff6b6b','2':'#4ade80','3':'#a78bfa',
+      '4':'#fb923c','6':'#34d399','7':'#f472b6','8':'#38bdf8',
+      '9':'#fbbf24','10':'#818cf8','13':'#a3e635','14':'#fb923c',
+    };
+    const BUS_COLOR    = '#f59e0b';
+    const TRAM_DEFAULT = '#e2e8f0';
+
+    function vehicleColor(type, route) {
+      if (type === 'metro') return LINE_COLORS[route]  || '#888';
+      if (type === 'train') return TRAIN_COLORS[route] || '#e879f9';
+      if (type === 'ferry') return FERRY_COLOR;
+      if (type === 'bus')   return BUS_COLOR;
+      return TRAM_COLORS[route] || TRAM_DEFAULT;
+    }
+
+    function makeIcon(type, route) {
+      const color = vehicleColor(type, route);
+      const shape = type === 'metro'
+        ? `<polygon points="12,2 22,22 2,22" fill="${color}" stroke="white" stroke-width="1.5"/>`
+        : type === 'train'
+        ? `<polygon points="12,2 22,12 12,22 2,12" fill="${color}" stroke="white" stroke-width="1.5"/>`
+        : type === 'bus'
+        ? `<rect x="2" y="2" width="20" height="20" rx="3" fill="${color}" stroke="white" stroke-width="1.5"/>`
+        : `<circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${shape}</svg>`;
+      return L.divIcon({ html: svg, className: '', iconSize: [24,24], iconAnchor: [12,12] });
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let snapshots = [];
+    let idx = 0, playing = false, timer = null, speed = 10;
+    const markers = {};
+    const visibleTypes = new Set(['metro','ferry','train','tram','bus']);
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
+    const scrubber     = document.getElementById('scrubber');
+    const timeDay      = document.getElementById('time-day');
+    const timeHms      = document.getElementById('time-hms');
+    const timeSnap     = document.getElementById('time-snap');
+    const vehicleCount = document.getElementById('vehicle-count');
+    const btnPlay      = document.getElementById('btn-play');
+    const loadingEl    = document.getElementById('loading');
+    const loadingText  = document.getElementById('loading-text');
+    const loadingBar   = document.getElementById('loading-bar');
+    const btnTrails    = document.getElementById('btn-trails');
+
+    // ── Loading helpers ───────────────────────────────────────────────────────
+    function showLoading(msg) { loadingText.textContent = msg; loadingBar.style.width = '0%'; loadingEl.classList.remove('hidden'); }
+    function setLoadingProgress(pct) { loadingBar.style.width = pct + '%'; }
+    function hideLoading() { loadingEl.classList.add('hidden'); }
+
+    // ── Data loading ──────────────────────────────────────────────────────────
+    async function loadDataset(name) {
+      pause(); clearMarkers(); clearCorridor();
+      showLoading(`Loading ${name.charAt(0).toUpperCase() + name.slice(1)}…`);
+
+      let resp;
+      try { resp = await fetch(`${name}.jsonl`); }
+      catch (err) {
+        loadingText.textContent = 'Cannot load file via file://. Run: python3 -m http.server 8080  then open http://localhost:8080/replay.html';
+        return;
+      }
+      if (!resp.ok) { loadingText.textContent = `No ${name} recording available.`; return; }
+
+      const contentLength = resp.headers.get('Content-Length');
+      const total = contentLength ? parseInt(contentLength) : 0;
+      const reader = resp.body.getReader(), decoder = new TextDecoder();
+      let received = 0, buffer = '';
+      const lines = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        buffer   += decoder.decode(value, { stream: true });
+        if (total) setLoadingProgress(Math.round(received / total * 100));
+        let nl;
+        while ((nl = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, nl).trim();
+          if (line) lines.push(line);
+          buffer = buffer.slice(nl + 1);
+        }
+      }
+      if (buffer.trim()) lines.push(buffer.trim());
+      setLoadingProgress(100);
+      loadingText.textContent = 'Parsing…';
+      await new Promise(r => setTimeout(r, 30));
+
+      snapshots = lines.map(l => JSON.parse(l));
+      idx = 0; scrubber.max = snapshots.length - 1; scrubber.value = 0;
+      hideLoading();
+      renderSnapshot(0);
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    function clearMarkers() {
+      for (const id of Object.keys(markers)) { markers[id].remove(); delete markers[id]; }
+    }
+
+    const iconCache = {};
+    function cachedIcon(type, route) {
+      const key = `${type}:${route}`;
+      if (!iconCache[key]) iconCache[key] = makeIcon(type, route);
+      return iconCache[key];
+    }
+
+    const FMT_DAY = { timeZone:'Europe/Stockholm', weekday:'long' };
+    const FMT_HMS = { timeZone:'Europe/Stockholm', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false };
+
+    function renderSnapshot(i) {
+      const snap = snapshots[i];
+      const seen = new Set();
+      let shown  = 0;
+
+      for (const [id, d] of Object.entries(snap.v)) {
+        const [lat, lon, type, route] = d;
+        const visible = visibleTypes.has(type);
+        seen.add(id);
+
+        if (visible) {
+          shown++;
+          if (markers[id]) {
+            markers[id].setLatLng([lat, lon]);
+          } else {
+            markers[id] = L.marker([lat, lon], { icon: cachedIcon(type, route) }).addTo(map);
+          }
+          drawCorridorPoint(lat, lon, vehicleColor(type, route));
+          if (paintTrails) corridorPoints.push({ lat, lon, color: vehicleColor(type, route) });
+        } else {
+          if (markers[id]) { markers[id].remove(); delete markers[id]; }
+        }
+      }
+
+      for (const id of Object.keys(markers)) {
+        if (!seen.has(id)) { markers[id].remove(); delete markers[id]; }
+      }
+
+      const d = new Date(snap.t * 1000);
+      timeDay.textContent  = d.toLocaleDateString('en-GB', FMT_DAY);
+      timeHms.textContent  = d.toLocaleTimeString('fi-FI', FMT_HMS);
+      timeSnap.textContent = `snapshot ${i + 1} / ${snapshots.length}`;
+      vehicleCount.textContent = `${shown} vehicles shown`;
+    }
+
+    // ── Playback ──────────────────────────────────────────────────────────────
+    function tick() {
+      if (idx >= snapshots.length - 1) { pause(); return; }
+      idx++; scrubber.value = idx; renderSnapshot(idx);
+    }
+    function play()  { if (!snapshots.length) return; playing = true;  timer = setInterval(tick, Math.round(30000 / speed)); btnPlay.textContent = '⏸'; }
+    function pause() { playing = false; clearInterval(timer); btnPlay.textContent = '▶'; }
+
+    // ── Controls ──────────────────────────────────────────────────────────────
+    document.getElementById('btn-start').addEventListener('click', () => { pause(); idx=0; scrubber.value=0; renderSnapshot(0); });
+    document.getElementById('btn-prev') .addEventListener('click', () => { pause(); idx=Math.max(0,idx-1); scrubber.value=idx; renderSnapshot(idx); });
+    btnPlay.addEventListener('click', () => playing ? pause() : play());
+    document.getElementById('btn-next') .addEventListener('click', () => { pause(); idx=Math.min(snapshots.length-1,idx+1); scrubber.value=idx; renderSnapshot(idx); });
+    document.getElementById('btn-end')  .addEventListener('click', () => { pause(); idx=snapshots.length-1; scrubber.value=idx; renderSnapshot(idx); });
+
+    scrubber.addEventListener('input', () => { pause(); idx=parseInt(scrubber.value); renderSnapshot(idx); });
+
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        speed = parseInt(btn.dataset.speed);
+        if (playing) { clearInterval(timer); timer = setInterval(tick, Math.round(30000/speed)); }
+      });
+    });
+
+    document.querySelectorAll('.dataset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.dataset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadDataset(btn.dataset.day);
+      });
+    });
+
+    // ── Vehicle type filter ───────────────────────────────────────────────────
+    document.querySelectorAll('[data-vtype]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.checked ? visibleTypes.add(cb.dataset.vtype) : visibleTypes.delete(cb.dataset.vtype);
+        if (snapshots.length) renderSnapshot(idx);
+      });
+    });
+
+    // ── Trails toggle & clear ─────────────────────────────────────────────────
+    btnTrails.addEventListener('click', () => {
+      paintTrails = !paintTrails;
+      btnTrails.classList.toggle('active', paintTrails);
+      btnTrails.textContent = paintTrails ? '🖌 Painting' : '🖌 Paint';
+      if (paintTrails && snapshots.length) renderSnapshot(idx);
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', clearCorridor);
+
+    // ── PNG export — draw directly from snapshot data (no DOM capture) ────────
+    document.getElementById('btn-png').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-png');
+      btn.textContent = '⏳ Capturing…'; btn.disabled = true;
+
+      try {
+        // Let tiles settle
+        await new Promise(r => setTimeout(r, 300));
+
+        const mapEl   = document.getElementById('map');
+        const w = mapEl.offsetWidth, h = mapEl.offsetHeight;
+        const mapRect = mapEl.getBoundingClientRect();
+
+        const out = document.createElement('canvas');
+        out.width = w; out.height = h;
+        const ctx = out.getContext('2d');
+
+        // 1 — dark background
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        // 2 — map tile images (crossOrigin was set on the tile layer)
+        mapEl.querySelectorAll('.leaflet-tile-pane img').forEach(img => {
+          try {
+            const r = img.getBoundingClientRect();
+            ctx.drawImage(img, r.left - mapRect.left, r.top - mapRect.top, r.width, r.height);
+          } catch (_) {}
+        });
+
+        // 3 — corridor canvas (positioned by Leaflet's layer pane system)
+        try {
+          const cr = corridorCanvas.getBoundingClientRect();
+          ctx.drawImage(corridorCanvas, cr.left - mapRect.left, cr.top - mapRect.top);
+        } catch (_) {}
+
+        // 4 — vehicle markers drawn from snapshot data (reliable, no DOM capture)
+        if (snapshots.length) {
+          const snap = snapshots[idx];
+          ctx.save();
+          for (const [, d] of Object.entries(snap.v)) {
+            const [lat, lon, type, route] = d;
+            if (!visibleTypes.has(type)) continue;
+            const cp    = map.latLngToContainerPoint([lat, lon]);
+            const color = vehicleColor(type, route);
+            const x = cp.x, y = cp.y;
+            ctx.globalAlpha = 1;
+            ctx.fillStyle   = color;
+            ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+            ctx.lineWidth   = 1.5;
+            ctx.beginPath();
+            if (type === 'metro') {
+              ctx.moveTo(x, y - 9); ctx.lineTo(x + 9, y + 8); ctx.lineTo(x - 9, y + 8);
+            } else if (type === 'train') {
+              ctx.moveTo(x, y - 9); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 9, y);
+            } else if (type === 'bus') {
+              ctx.rect(x - 8, y - 8, 16, 16);
+            } else {
+              ctx.arc(x, y, 9, 0, Math.PI * 2);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // 5 — timestamp watermark (bottom-left)
+        if (snapshots.length) {
+          const label = new Date(snapshots[idx].t * 1000).toLocaleString('fi-FI', {
+            timeZone:'Europe/Stockholm', weekday:'short',
+            hour:'2-digit', minute:'2-digit', second:'2-digit',
+          });
+          ctx.font      = 'bold 13px system-ui, sans-serif';
+          ctx.globalAlpha = 1;
+          const tw = ctx.measureText(label).width;
+          ctx.fillStyle = 'rgba(0,0,0,0.6)';
+          ctx.fillRect(8, h - 30, tw + 16, 22);
+          ctx.fillStyle = '#e2e8f0';
+          ctx.fillText(label, 16, h - 13);
+        }
+
+        // 6 — trigger download
+        const day  = document.querySelector('.dataset-btn.active').dataset.day;
+        const link = document.createElement('a');
+        link.download = `sto-replay-${day}-${String(idx).padStart(4,'0')}.png`;
+        link.href     = out.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+      } catch (err) {
+        console.error('PNG export error:', err);
+        alert('Export failed: ' + err.message);
+      } finally {
+        btn.textContent = '⬇ Save as PNG';
+        btn.disabled    = false;
+      }
+    });
+
+    // ── Help modal ────────────────────────────────────────────────────────────
+    const helpOverlay = document.getElementById('help-overlay');
+    document.getElementById('btn-help').addEventListener('click', () => {
+      helpOverlay.classList.remove('hidden');
+    });
+    document.getElementById('btn-help-close').addEventListener('click', () => {
+      helpOverlay.classList.add('hidden');
+    });
+    helpOverlay.addEventListener('click', e => {
+      if (e.target === helpOverlay) helpOverlay.classList.add('hidden');
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') helpOverlay.classList.add('hidden');
+    });
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    loadDataset('20260414');
+  </script>
+</body>
+</html>

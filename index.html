@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nordic Transit Replay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%; font-family: system-ui, -apple-system, sans-serif;
+      background: #0d1117; color: #e2e8f0;
+      display: flex; flex-direction: column;
+    }
+
+    header {
+      padding: 40px 24px 0;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.6rem; font-weight: 700; color: #e2e8f0;
+      letter-spacing: -0.01em;
+    }
+    header p {
+      margin-top: 10px; font-size: 0.88rem; color: #6e7681;
+      max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.6;
+    }
+    .date-badge {
+      display: inline-block; margin-top: 14px;
+      padding: 4px 14px; border-radius: 20px;
+      background: #161b22; border: 1px solid #30363d;
+      font-size: 0.78rem; color: #8b949e; letter-spacing: 0.04em;
+    }
+
+    main {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      width: 100%; max-width: 680px;
+    }
+
+    .city-card {
+      display: flex; flex-direction: column;
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 12px; overflow: hidden;
+      text-decoration: none; color: inherit;
+      transition: border-color 0.15s, background 0.15s, transform 0.12s;
+      cursor: pointer;
+    }
+    .city-card:hover {
+      border-color: #388bfd;
+      background: #1a2233;
+      transform: translateY(-2px);
+    }
+
+    .city-map-preview {
+      height: 130px;
+      background: #0d1117;
+      position: relative; overflow: hidden;
+    }
+    /* Subtle city silhouette using CSS — just a decorative gradient */
+    .city-map-preview::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, transparent 40%, #161b22 100%);
+    }
+    .map-dot {
+      position: absolute; border-radius: 50%;
+      opacity: 0.5; animation: pulse 3s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50%       { opacity: 0.7; transform: scale(1.15); }
+    }
+
+    .city-info {
+      padding: 14px 16px 16px;
+    }
+    .city-name {
+      font-size: 1.05rem; font-weight: 600; color: #e2e8f0;
+      margin-bottom: 4px;
+    }
+    .city-meta {
+      font-size: 0.76rem; color: #6e7681; line-height: 1.5;
+    }
+    .city-tag {
+      display: inline-block; margin-top: 10px;
+      padding: 3px 9px; border-radius: 4px;
+      font-size: 0.7rem; font-weight: 500; letter-spacing: 0.03em;
+    }
+
+    footer {
+      padding: 20px; text-align: center;
+      font-size: 0.72rem; color: #3d444d;
+      border-top: 1px solid #161b22;
+    }
+
+    @media (max-width: 500px) {
+      .grid { grid-template-columns: 1fr; max-width: 340px; }
+      header h1 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Nordic Transit Replay</h1>
+    <p>24 hours of real public-transport movement across four Nordic capitals — recorded every 30–120 seconds and replayed as an animated map.</p>
+    <span class="date-badge">Tuesday, 14 April 2026</span>
+  </header>
+
+  <main>
+    <div class="grid">
+
+      <!-- Helsinki -->
+      <a class="city-card" href="helsinki/replay.html">
+        <div class="city-map-preview" style="background: radial-gradient(ellipse at 45% 55%, #0d2040 0%, #0d1117 70%);">
+          <div class="map-dot" style="width:8px;height:8px;background:#60a5fa;left:44%;top:52%;animation-delay:0s"></div>
+          <div class="map-dot" style="width:6px;height:6px;background:#f87171;left:62%;top:48%;animation-delay:0.4s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#4ade80;left:38%;top:40%;animation-delay:0.8s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#e879f9;left:55%;top:35%;animation-delay:1.2s"></div>
+          <div class="map-dot" style="width:4px;height:4px;background:#22d3ee;left:50%;top:62%;animation-delay:1.6s"></div>
+        </div>
+        <div class="city-info">
+          <div class="city-name">Helsinki</div>
+          <div class="city-meta">Metro · Tram · Train · Ferry · Bus<br>HSL real-time feed · 30 s interval</div>
+          <span class="city-tag" style="background:#0d2040;color:#60a5fa;border:1px solid #1e3a6e">Finland</span>
+        </div>
+      </a>
+
+      <!-- Stockholm -->
+      <a class="city-card" href="stockholm/replay.html">
+        <div class="city-map-preview" style="background: radial-gradient(ellipse at 50% 50%, #1a1020 0%, #0d1117 70%);">
+          <div class="map-dot" style="width:8px;height:8px;background:#a78bfa;left:50%;top:50%;animation-delay:0.2s"></div>
+          <div class="map-dot" style="width:6px;height:6px;background:#f472b6;left:42%;top:44%;animation-delay:0.6s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#34d399;left:58%;top:56%;animation-delay:1.0s"></div>
+          <div class="map-dot" style="width:4px;height:4px;background:#fb923c;left:46%;top:60%;animation-delay:1.4s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#38bdf8;left:56%;top:38%;animation-delay:1.8s"></div>
+        </div>
+        <div class="city-info">
+          <div class="city-name">Stockholm</div>
+          <div class="city-meta">Tunnelbana · Tram · Commuter rail<br>Trafiklab GTFS-RT · 120 s interval</div>
+          <span class="city-tag" style="background:#1a0d20;color:#a78bfa;border:1px solid #3d1e6e">Sweden</span>
+        </div>
+      </a>
+
+      <!-- Oslo -->
+      <a class="city-card" href="oslo/replay.html">
+        <div class="city-map-preview" style="background: radial-gradient(ellipse at 48% 52%, #0d1a14 0%, #0d1117 70%);">
+          <div class="map-dot" style="width:8px;height:8px;background:#34d399;left:48%;top:52%;animation-delay:0.3s"></div>
+          <div class="map-dot" style="width:6px;height:6px;background:#60d6b4;left:56%;top:45%;animation-delay:0.7s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#a3e635;left:40%;top:58%;animation-delay:1.1s"></div>
+          <div class="map-dot" style="width:4px;height:4px;background:#4ade80;left:54%;top:62%;animation-delay:1.5s"></div>
+        </div>
+        <div class="city-info">
+          <div class="city-name">Oslo</div>
+          <div class="city-meta">Regional trains · National services<br>Entur GTFS-RT · 120 s interval</div>
+          <span class="city-tag" style="background:#0d1a14;color:#34d399;border:1px solid #1a4d30">Norway</span>
+        </div>
+      </a>
+
+      <!-- Reykjavik -->
+      <a class="city-card" href="reykjavik/replay.html">
+        <div class="city-map-preview" style="background: radial-gradient(ellipse at 52% 48%, #0d1820 0%, #0d1117 70%);">
+          <div class="map-dot" style="width:8px;height:8px;background:#f59e0b;left:50%;top:50%;animation-delay:0.1s"></div>
+          <div class="map-dot" style="width:6px;height:6px;background:#fbbf24;left:40%;top:42%;animation-delay:0.5s"></div>
+          <div class="map-dot" style="width:5px;height:5px;background:#f59e0b;left:60%;top:56%;animation-delay:0.9s"></div>
+          <div class="map-dot" style="width:4px;height:4px;background:#fcd34d;left:44%;top:62%;animation-delay:1.3s"></div>
+        </div>
+        <div class="city-info">
+          <div class="city-name">Reykjavik</div>
+          <div class="city-meta">Strætó bus network · Capital Region<br>Swiftly GTFS-RT · 30 s interval</div>
+          <span class="city-tag" style="background:#0d1820;color:#f59e0b;border:1px solid #4d3010">Iceland</span>
+        </div>
+      </a>
+
+    </div>
+  </main>
+
+  <footer>
+    Real-time vehicle positions recorded 14 April 2026 · Nordic Transit Art Project
+  </footer>
+
+</body>
+</html>
