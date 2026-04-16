@@ -103,6 +103,63 @@
       .grid { grid-template-columns: 1fr; max-width: 340px; }
       header h1 { font-size: 1.3rem; }
     }
+
+    /* ── Help button ── */
+    #btn-help {
+      display: block; margin: 16px auto 0;
+      padding: 5px 14px; font-size: 0.78rem;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 20px; color: #8b949e; cursor: pointer;
+      transition: all 0.15s;
+    }
+    #btn-help:hover { background: #30363d; color: #e2e8f0; border-color: #8b949e; }
+
+    /* ── Help modal ── */
+    #help-overlay {
+      position: fixed; inset: 0; z-index: 9900;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    #help-overlay.hidden { display: none; }
+    #help-modal {
+      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      width: 100%; max-width: 560px; max-height: 90vh;
+      display: flex; flex-direction: column;
+      overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    #help-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid #30363d; flex-shrink: 0;
+    }
+    #help-header h2 { font-size: 1rem; font-weight: 600; color: #e2e8f0; }
+    #btn-help-close {
+      background: none; border: none; color: #6e7681; font-size: 1.3rem;
+      cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+    }
+    #btn-help-close:hover { background: #21262d; color: #e2e8f0; }
+    #help-body {
+      overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .help-section-title {
+      font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #388bfd; margin-bottom: 8px; font-weight: 600;
+    }
+    .help-row {
+      display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px;
+    }
+    .help-icon { font-size: 1rem; width: 22px; flex-shrink: 0; text-align: center; margin-top: 1px; }
+    .help-text { font-size: 0.82rem; color: #c9d1d9; line-height: 1.5; }
+    .help-text strong { color: #e2e8f0; }
+    .help-note {
+      font-size: 0.75rem; color: #6e7681; line-height: 1.5;
+      background: #0d1117; border: 1px solid #21262d;
+      border-radius: 6px; padding: 10px 12px;
+    }
+    .help-shapes { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+    .help-shape-item { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; color: #8b949e; }
+    .hs { display: inline-block; width: 14px; height: 14px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -111,6 +168,7 @@
     <h1>Nordic Transit Replay</h1>
     <p>24 hours of real public-transport movement across four Nordic capitals — recorded every 30–120 seconds and replayed as an animated map.</p>
     <span class="date-badge">Tue 8 Apr &nbsp;·&nbsp; Tue 14 Apr 2026 &nbsp;— select date inside each player</span>
+    <button id="btn-help">ℹ How to use</button>
   </header>
 
   <main>
@@ -185,6 +243,147 @@
     Real-time vehicle positions recorded 14 April 2026 · Nordic Transit Art Project
     &nbsp;·&nbsp; <a href="all-cities.html" style="color:#388bfd;text-decoration:none;">All cities synced ↗</a>
   </footer>
+
+  <!-- Help modal -->
+  <div id="help-overlay" class="hidden">
+    <div id="help-modal" role="dialog" aria-modal="true" aria-label="How to use Nordic Transit Replay">
+      <div id="help-header">
+        <h2>Nordic Transit Replay — How to use</h2>
+        <button id="btn-help-close" title="Close">✕</button>
+      </div>
+      <div id="help-body">
+
+        <div>
+          <div class="help-section-title">What is this?</div>
+          <div class="help-text">
+            Nordic Transit Replay captures <strong>24 hours of real public-transport movement</strong>
+            across four Nordic capitals — Helsinki, Stockholm, Oslo, and Reykjavik — and replays it as
+            an animated dark map. Vehicle positions were recorded every 30–120 seconds from live feeds,
+            giving roughly 720–2 880 frames per city per day.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Choosing a city</div>
+          <div class="help-row">
+            <span class="help-icon">🗺</span>
+            <div class="help-text">Click any city card to open its individual replay player.
+            Each player loads only that city's data (~7–80 MB) and lets you explore it in detail.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">⊞</span>
+            <div class="help-text">Use <strong>All cities synced ↗</strong> in the footer to watch
+            all four cities play simultaneously from a single shared timeline — great for side-by-side comparison.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Dates</div>
+          <div class="help-row">
+            <span class="help-icon">📅</span>
+            <div class="help-text">Two recordings are available: <strong>Tuesday 8 April</strong> and
+            <strong>Tuesday 14 April 2026</strong>. Select the date inside each city player using the
+            pill buttons in the right panel. Helsinki also has <strong>Sunday 15 Mar</strong> and
+            <strong>Monday 16 Mar</strong> for weekday comparison.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Playback controls</div>
+          <div class="help-row">
+            <span class="help-icon">⏮⏭</span>
+            <div class="help-text"><strong>Jump to start / end</strong> — skip to midnight or the last snapshot.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">◀ ▶</span>
+            <div class="help-text"><strong>Step</strong> — move one snapshot backward or forward.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">▶⏸</span>
+            <div class="help-text"><strong>Play / Pause</strong> — start or stop automatic playback at the selected speed.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">━●━</span>
+            <div class="help-text"><strong>Scrubber</strong> — drag to jump to any moment instantly.</div>
+          </div>
+          <div class="help-note">
+            1× = real time &nbsp;·&nbsp; 10× = one tick every 3 s <em>(default)</em> &nbsp;·&nbsp;
+            60× = two ticks per second — full 24 h in ~24 min
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Vehicle types &amp; shapes</div>
+          <div class="help-text" style="margin-bottom:8px">Each type has a distinct shape, consistent across all cities:</div>
+          <div class="help-shapes">
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><polygon points="7,1 13,13 1,13" fill="#60a5fa" stroke="white" stroke-width="1"/></svg>
+              Metro
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><polygon points="7,1 13,7 7,13 1,7" fill="#e879f9" stroke="white" stroke-width="1"/></svg>
+              Train
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#ff6b6b" stroke="white" stroke-width="1"/></svg>
+              Tram
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><rect x="1" y="1" width="12" height="12" rx="2" fill="#f59e0b" stroke="white" stroke-width="1"/></svg>
+              Bus
+            </div>
+            <div class="help-shape-item">
+              <svg class="hs" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#22d3ee" stroke="white" stroke-width="1"/></svg>
+              Ferry
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Corridor trails (🖌 Paint)</div>
+          <div class="help-row">
+            <span class="help-icon">🖌</span>
+            <div class="help-text"><strong>Paint</strong> — permanently dot-paints every vehicle position
+            onto the map as playback advances, revealing the full network geometry over time.</div>
+          </div>
+          <div class="help-row">
+            <span class="help-icon">🧹</span>
+            <div class="help-text"><strong>Clear</strong> — wipes the painted canvas so you can start fresh.</div>
+          </div>
+          <div class="help-note">
+            Tip: enable Paint, jump to 07:00 and run at 30× — watch the morning rush build across the network.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Timezones in the synced view</div>
+          <div class="help-text">
+            All four cities play from the <strong>same UTC clock</strong>. Local times differ by design —
+            Helsinki noon (UTC+3) = Stockholm 11:00 (UTC+2) = Reykjavik 09:00 (UTC+0).
+            Each city badge shows its UTC offset for reference.
+          </div>
+        </div>
+
+        <div>
+          <div class="help-section-title">Save as PNG</div>
+          <div class="help-row">
+            <span class="help-icon">⬇</span>
+            <div class="help-text">Available in each individual city player — exports the current map view
+            with vehicle markers, corridor trails, and a local-time watermark.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const helpOverlay = document.getElementById('help-overlay');
+    document.getElementById('btn-help').addEventListener('click', () => helpOverlay.classList.remove('hidden'));
+    document.getElementById('btn-help-close').addEventListener('click', () => helpOverlay.classList.add('hidden'));
+    helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.classList.add('hidden'); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') helpOverlay.classList.add('hidden'); });
+  </script>
 
 </body>
 </html>
