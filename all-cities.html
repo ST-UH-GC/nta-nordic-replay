@@ -112,6 +112,16 @@
     }
     .speed-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
     .speed-btn:hover:not(.active) { background: #30363d; color: #e2e8f0; }
+
+    /* Paint / Clear */
+    .tool-btn {
+      padding: 4px 10px; font-size: 0.72rem; white-space: nowrap;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 5px; color: #8b949e; cursor: pointer;
+    }
+    .tool-btn:hover { background: #30363d; color: #e2e8f0; }
+    .tool-btn.active { background: #14532d; border-color: #16a34a; color: #86efac; }
+    .tool-btn.danger:hover { background: #7f1d1d; border-color: #dc2626; color: #fca5a5; }
   </style>
 </head>
 <body>
@@ -207,6 +217,8 @@
     <button class="speed-btn"        data-speed="30">30×</button>
     <button class="speed-btn"        data-speed="60">60×</button>
   </div>
+  <button class="tool-btn" id="btn-paint">🖌 Paint</button>
+  <button class="tool-btn danger" id="btn-clear">🧹 Clear</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -248,6 +260,66 @@ function getIcon(type, route) {
   return (iconCache[key] = L.divIcon({ html:svg, className:'', iconSize:[24,24], iconAnchor:[12,12] }));
 }
 
+// ── Corridor canvas helpers (one per city) ────────────────────────────────────
+let paintTrails = false;
+
+function setupCanvas(c) {
+  const map = c.map;
+  map.createPane('corridorPane');
+  map.getPane('corridorPane').style.zIndex       = 250;
+  map.getPane('corridorPane').style.pointerEvents = 'none';
+  const canvas = document.createElement('canvas');
+  canvas.style.pointerEvents = 'none';
+  map.getPane('corridorPane').appendChild(canvas);
+  c.canvas = canvas;
+  c.corridorPts = [];
+  _resizeCanvas(c);
+  map.on('moveend zoomend resize', () => _redrawCanvas(c));
+}
+
+function _resizeCanvas(c) {
+  const sz = c.map.getSize();
+  const tl = c.map.containerPointToLayerPoint([0,0]);
+  L.DomUtil.setPosition(c.canvas, tl);
+  c.canvas.width  = sz.x;
+  c.canvas.height = sz.y;
+}
+
+function _ptOn(c, lat, lon) {
+  const lp  = c.map.latLngToLayerPoint([lat, lon]);
+  const pos = L.DomUtil.getPosition(c.canvas) || L.point(0,0);
+  return lp.subtract(pos);
+}
+
+function _redrawCanvas(c) {
+  _resizeCanvas(c);
+  if (!c.corridorPts.length) return;
+  const ctx = c.canvas.getContext('2d');
+  for (const p of c.corridorPts) {
+    const pt = _ptOn(c, p.lat, p.lon);
+    if (pt.x < -10 || pt.y < -10 || pt.x > c.canvas.width+10 || pt.y > c.canvas.height+10) continue;
+    ctx.globalAlpha = 0.33; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function paintDot(c, lat, lon, color) {
+  const pt = _ptOn(c, lat, lon);
+  if (pt.x < -10 || pt.y < -10 || pt.x > c.canvas.width+10 || pt.y > c.canvas.height+10) return;
+  const ctx = c.canvas.getContext('2d');
+  ctx.globalAlpha = 0.33; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, Math.PI*2); ctx.fill();
+  c.corridorPts.push({ lat, lon, color });
+}
+
+function clearAllCanvases() {
+  for (const c of Object.values(cities)) {
+    if (!c.canvas) continue;
+    c.corridorPts = [];
+    _resizeCanvas(c);
+  }
+}
+
 // ── Per-city state ────────────────────────────────────────────────────────────
 const cities = {};
 CITY_CFG.forEach(cfg => {
@@ -259,6 +331,7 @@ CITY_CFG.forEach(cfg => {
   setTimeout(() => map.invalidateSize(), 200);
 
   cities[cfg.id] = { cfg, map, snapshots:[], markers:{}, ready:false };
+  setupCanvas(cities[cfg.id]);
 });
 
 // ── Shared timeline ───────────────────────────────────────────────────────────
@@ -302,6 +375,7 @@ function renderCity(c) {
     seen.add(id); shown++;
     if (markers[id]) markers[id].setLatLng([lat, lon]);
     else markers[id] = L.marker([lat, lon], { icon:getIcon(type, route) }).addTo(map);
+    if (paintTrails) paintDot(c, lat, lon, vehicleColor(type, route));
   }
   for (const id of Object.keys(markers)) {
     if (!seen.has(id)) { markers[id].remove(); delete markers[id]; }
@@ -463,6 +537,16 @@ document.querySelectorAll('.dataset-btn').forEach(btn => {
     loadAll(btn.dataset.date);
   });
 });
+
+// ── Paint / Clear ─────────────────────────────────────────────────────────────
+const btnPaint = document.getElementById('btn-paint');
+document.getElementById('btn-paint').addEventListener('click', () => {
+  paintTrails = !paintTrails;
+  btnPaint.classList.toggle('active', paintTrails);
+  btnPaint.textContent = paintTrails ? '🖌 Painting' : '🖌 Paint';
+  if (paintTrails) renderAll();  // paint current positions immediately
+});
+document.getElementById('btn-clear').addEventListener('click', clearAllCanvases);
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadAll('20260414');
