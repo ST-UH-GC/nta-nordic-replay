@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nordic Transit · All Cities</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%; font-family: system-ui, -apple-system, sans-serif;
+      background: #0d1117; color: #e2e8f0;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 14px; flex-shrink: 0;
+      background: #161b22; border-bottom: 1px solid #30363d;
+    }
+    header h1 { font-size: 0.9rem; font-weight: 600; flex: 1; color: #e2e8f0; }
+    .back-link {
+      font-size: 0.75rem; color: #6e7681; text-decoration: none;
+      padding: 3px 10px; border: 1px solid #30363d;
+      border-radius: 20px; background: #21262d; white-space: nowrap;
+    }
+    .back-link:hover { color: #e2e8f0; border-color: #8b949e; }
+
+    /* Dataset pills */
+    .dataset-btns { display: flex; gap: 5px; }
+    .dataset-btn {
+      padding: 3px 11px; font-size: 0.75rem; border-radius: 20px;
+      border: 1px solid #30363d; background: #21262d; color: #8b949e; cursor: pointer;
+    }
+    .dataset-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+    .dataset-btn:hover:not(.active) { background: #30363d; color: #e2e8f0; }
+
+    /* ── 2×2 grid ── */
+    #grid {
+      flex: 1; display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px; background: #0d1117;
+      min-height: 0;
+    }
+
+    .city-cell { position: relative; overflow: hidden; }
+    .city-map  { width: 100%; height: 100%; }
+
+    /* Per-city info badge (top-left) */
+    .city-badge {
+      position: absolute; top: 8px; left: 8px; z-index: 500;
+      background: rgba(13,17,23,0.85); border: 1px solid rgba(48,54,61,0.9);
+      border-radius: 8px; padding: 7px 12px; pointer-events: none;
+    }
+    .badge-name  { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+    .badge-time  { font-size: 1rem; font-weight: 700; font-family: 'SF Mono','Fira Code',monospace; letter-spacing: 0.04em; color: #e2e8f0; }
+    .badge-count { font-size: 0.64rem; color: #6e7681; margin-top: 2px; }
+
+    /* Per-city loading overlay */
+    .city-loading {
+      position: absolute; inset: 0; z-index: 600;
+      background: rgba(13,17,23,0.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+    }
+    .city-loading.hidden { display: none; }
+    .loading-label { font-size: 0.82rem; color: #c9d1d9; }
+    .loading-bar-wrap { width: 160px; height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; }
+    .loading-bar { height: 100%; width: 0%; transition: width 0.08s; border-radius: 2px; }
+
+    /* "Not yet / ended" dim overlay */
+    .city-dim {
+      position: absolute; inset: 0; z-index: 400;
+      background: rgba(13,17,23,0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; color: #6e7681; pointer-events: none;
+    }
+    .city-dim.hidden { display: none; }
+
+    /* ── Bottom control bar ── */
+    #controls {
+      flex-shrink: 0;
+      background: #161b22; border-top: 1px solid #30363d;
+      padding: 7px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    #utc-clock {
+      font-size: 0.82rem; font-weight: 700;
+      font-family: 'SF Mono','Fira Code',monospace;
+      color: #6e7681; white-space: nowrap; min-width: 88px;
+    }
+
+    .ctrl-row { display: flex; gap: 3px; flex-shrink: 0; }
+    .ctrl-btn {
+      padding: 5px 8px; font-size: 0.82rem;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 5px; color: #c9d1d9; cursor: pointer;
+    }
+    .ctrl-btn:hover { background: #30363d; }
+    #btn-play { min-width: 30px; }
+
+    #scrubber { flex: 1; cursor: pointer; accent-color: #388bfd; min-width: 60px; }
+
+    .speed-btns { display: flex; gap: 3px; flex-shrink: 0; }
+    .speed-btn {
+      padding: 4px 7px; font-size: 0.7rem; white-space: nowrap;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 4px; color: #8b949e; cursor: pointer;
+    }
+    .speed-btn.active { background: #1f6feb; border-color: #388bfd; color: #fff; }
+    .speed-btn:hover:not(.active) { background: #30363d; color: #e2e8f0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1 id="page-title">Nordic Transit · All Cities — Tue 14 Apr 2026</h1>
+  <div class="dataset-btns">
+    <button class="dataset-btn"        data-date="20260408">Tue 8 Apr</button>
+    <button class="dataset-btn active" data-date="20260414">Tue 14 Apr</button>
+  </div>
+  <a class="back-link" href="index.html">← Hub</a>
+</header>
+
+<div id="grid">
+
+  <!-- Helsinki -->
+  <div class="city-cell">
+    <div class="city-map" id="map-helsinki"></div>
+    <div class="city-badge">
+      <div class="badge-name" style="color:#60a5fa">Helsinki</div>
+      <div class="badge-time"  id="time-helsinki">--:--:--</div>
+      <div class="badge-count" id="count-helsinki">—</div>
+    </div>
+    <div class="city-loading" id="loading-helsinki">
+      <div class="loading-label">Loading Helsinki…</div>
+      <div class="loading-bar-wrap"><div class="loading-bar" id="bar-helsinki" style="background:#60a5fa"></div></div>
+    </div>
+    <div class="city-dim hidden" id="dim-helsinki">not recording</div>
+  </div>
+
+  <!-- Stockholm -->
+  <div class="city-cell">
+    <div class="city-map" id="map-stockholm"></div>
+    <div class="city-badge">
+      <div class="badge-name" style="color:#a78bfa">Stockholm</div>
+      <div class="badge-time"  id="time-stockholm">--:--:--</div>
+      <div class="badge-count" id="count-stockholm">—</div>
+    </div>
+    <div class="city-loading" id="loading-stockholm">
+      <div class="loading-label">Loading Stockholm…</div>
+      <div class="loading-bar-wrap"><div class="loading-bar" id="bar-stockholm" style="background:#a78bfa"></div></div>
+    </div>
+    <div class="city-dim hidden" id="dim-stockholm">not recording</div>
+  </div>
+
+  <!-- Oslo -->
+  <div class="city-cell">
+    <div class="city-map" id="map-oslo"></div>
+    <div class="city-badge">
+      <div class="badge-name" style="color:#34d399">Oslo</div>
+      <div class="badge-time"  id="time-oslo">--:--:--</div>
+      <div class="badge-count" id="count-oslo">—</div>
+    </div>
+    <div class="city-loading" id="loading-oslo">
+      <div class="loading-label">Loading Oslo…</div>
+      <div class="loading-bar-wrap"><div class="loading-bar" id="bar-oslo" style="background:#34d399"></div></div>
+    </div>
+    <div class="city-dim hidden" id="dim-oslo">not recording</div>
+  </div>
+
+  <!-- Reykjavik -->
+  <div class="city-cell">
+    <div class="city-map" id="map-reykjavik"></div>
+    <div class="city-badge">
+      <div class="badge-name" style="color:#f59e0b">Reykjavik</div>
+      <div class="badge-time"  id="time-reykjavik">--:--:--</div>
+      <div class="badge-count" id="count-reykjavik">—</div>
+    </div>
+    <div class="city-loading" id="loading-reykjavik">
+      <div class="loading-label">Loading Reykjavik…</div>
+      <div class="loading-bar-wrap"><div class="loading-bar" id="bar-reykjavik" style="background:#f59e0b"></div></div>
+    </div>
+    <div class="city-dim hidden" id="dim-reykjavik">not recording</div>
+  </div>
+
+</div>
+
+<!-- Controls -->
+<div id="controls">
+  <div id="utc-clock">--:--:-- UTC</div>
+  <div class="ctrl-row">
+    <button class="ctrl-btn" id="btn-start" title="Jump to start">⏮</button>
+    <button class="ctrl-btn" id="btn-prev"  title="Step back">◀</button>
+    <button class="ctrl-btn" id="btn-play"  title="Play / Pause">▶</button>
+    <button class="ctrl-btn" id="btn-next"  title="Step forward">▶</button>
+    <button class="ctrl-btn" id="btn-end"   title="Jump to end">⏭</button>
+  </div>
+  <input type="range" id="scrubber" min="0" max="10000" value="0" />
+  <div class="speed-btns">
+    <button class="speed-btn"        data-speed="1">1×</button>
+    <button class="speed-btn"        data-speed="5">5×</button>
+    <button class="speed-btn active" data-speed="10">10×</button>
+    <button class="speed-btn"        data-speed="30">30×</button>
+    <button class="speed-btn"        data-speed="60">60×</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── City config ───────────────────────────────────────────────────────────────
+const CITY_CFG = [
+  { id:'helsinki',  tz:'Europe/Helsinki',    center:[60.2055, 24.9554], zoom:11, color:'#60a5fa' },
+  { id:'stockholm', tz:'Europe/Stockholm',   center:[59.3301, 18.0582], zoom:10, color:'#a78bfa' },
+  { id:'oslo',      tz:'Europe/Oslo',        center:[59.9139, 10.7522], zoom:10, color:'#34d399' },
+  { id:'reykjavik', tz:'Atlantic/Reykjavik', center:[64.1355,-21.8954], zoom:11, color:'#f59e0b' },
+];
+
+// ── Vehicle rendering (same scheme as individual players) ─────────────────────
+const LINE_COLORS  = { M1:'#60a5fa', M2:'#f87171' };
+const TRAIN_COLORS = { I:'#e879f9', P:'#60d6b4' };
+const TRAM_COLORS  = {
+  '1':'#ff6b6b','1A':'#ff6b6b','2':'#4ade80','3':'#a78bfa','4':'#fb923c',
+  '6':'#34d399','7':'#f472b6','8':'#38bdf8','9':'#fbbf24','10':'#818cf8',
+  '13':'#a3e635','14':'#fb923c',
+};
+function vehicleColor(type, route) {
+  if (type==='metro') return LINE_COLORS[route] || '#888';
+  if (type==='train') return TRAIN_COLORS[route] || '#e879f9';
+  if (type==='ferry') return '#22d3ee';
+  if (type==='bus')   return '#f59e0b';
+  return TRAM_COLORS[route] || '#e2e8f0';
+}
+const iconCache = {};
+function getIcon(type, route) {
+  const key = `${type}:${route}`;
+  if (iconCache[key]) return iconCache[key];
+  const c = vehicleColor(type, route);
+  const shape =
+    type==='metro' ? `<polygon points="12,2 22,22 2,22" fill="${c}" stroke="white" stroke-width="1.5"/>` :
+    type==='train' ? `<polygon points="12,2 22,12 12,22 2,12" fill="${c}" stroke="white" stroke-width="1.5"/>` :
+    type==='bus'   ? `<rect x="2" y="2" width="20" height="20" rx="3" fill="${c}" stroke="white" stroke-width="1.5"/>` :
+                     `<circle cx="12" cy="12" r="10" fill="${c}" stroke="white" stroke-width="1.5"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${shape}</svg>`;
+  return (iconCache[key] = L.divIcon({ html:svg, className:'', iconSize:[24,24], iconAnchor:[12,12] }));
+}
+
+// ── Per-city state ────────────────────────────────────────────────────────────
+const cities = {};
+CITY_CFG.forEach(cfg => {
+  const map = L.map(`map-${cfg.id}`, { zoomControl:false, attributionControl:false })
+    .setView(cfg.center, cfg.zoom);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom:19, crossOrigin:true,
+  }).addTo(map);
+  setTimeout(() => map.invalidateSize(), 200);
+
+  cities[cfg.id] = { cfg, map, snapshots:[], markers:{}, ready:false };
+});
+
+// ── Shared timeline ───────────────────────────────────────────────────────────
+let currentUTC  = 0;
+let timelineMin = 0, timelineMax = 0;
+let playing = false, timer = null, speed = 10;
+let currentDate = '20260414';
+
+// ── Binary search: latest snapshot index ≤ utc ───────────────────────────────
+function findIdx(snaps, utc) {
+  if (!snaps.length || utc < snaps[0].t) return -1;       // before recording
+  if (utc >= snaps[snaps.length-1].t) return snaps.length-1;
+  let lo=0, hi=snaps.length-1;
+  while (lo < hi) {
+    const mid = (lo+hi+1) >> 1;
+    if (snaps[mid].t <= utc) lo=mid; else hi=mid-1;
+  }
+  return lo;
+}
+
+// ── Render one city ───────────────────────────────────────────────────────────
+function renderCity(c) {
+  const { cfg, map, snapshots, markers } = c;
+  const idx = findIdx(snapshots, currentUTC);
+  const dimEl = document.getElementById(`dim-${cfg.id}`);
+
+  // Outside recording window → dim the map
+  if (idx === -1 || currentUTC > snapshots[snapshots.length-1].t + 60) {
+    dimEl.classList.remove('hidden');
+    dimEl.textContent = idx === -1 ? 'not yet recording' : 'recording ended';
+    return;
+  }
+  dimEl.classList.add('hidden');
+
+  const snap = snapshots[idx];
+  const seen = new Set();
+  let shown = 0;
+
+  for (const [id, d] of Object.entries(snap.v)) {
+    const [lat, lon, type, route] = d;
+    seen.add(id); shown++;
+    if (markers[id]) markers[id].setLatLng([lat, lon]);
+    else markers[id] = L.marker([lat, lon], { icon:getIcon(type, route) }).addTo(map);
+  }
+  for (const id of Object.keys(markers)) {
+    if (!seen.has(id)) { markers[id].remove(); delete markers[id]; }
+  }
+
+  // Badge
+  const d = new Date(snap.t * 1000);
+  document.getElementById(`time-${cfg.id}`).textContent =
+    d.toLocaleTimeString('en-GB', { timeZone:cfg.tz, hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+  document.getElementById(`count-${cfg.id}`).textContent = `${shown} vehicles`;
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  for (const c of Object.values(cities)) { if (c.ready) renderCity(c); }
+
+  // UTC clock
+  if (currentUTC) {
+    document.getElementById('utc-clock').textContent =
+      new Date(currentUTC*1000).toLocaleTimeString('en-GB',
+        { timeZone:'UTC', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }) + ' UTC';
+  }
+  // Scrubber
+  if (timelineMax > timelineMin) {
+    document.getElementById('scrubber').value =
+      Math.round((currentUTC - timelineMin) / (timelineMax - timelineMin) * 10000);
+  }
+}
+
+// ── Recalculate timeline after each city loads ────────────────────────────────
+function recalcTimeline() {
+  const ready = Object.values(cities).filter(c => c.ready && c.snapshots.length);
+  if (!ready.length) return;
+  timelineMin = Math.min(...ready.map(c => c.snapshots[0].t));
+  timelineMax = Math.max(...ready.map(c => c.snapshots[c.snapshots.length-1].t));
+
+  // Once ALL loaded, jump to overlap start (all cities recording simultaneously)
+  const allReady = Object.values(cities).every(c => c.ready);
+  if (allReady) {
+    const overlapStart = Math.max(...ready.map(c => c.snapshots[0].t));
+    currentUTC = overlapStart;
+  } else if (!currentUTC) {
+    currentUTC = timelineMin;
+  }
+  renderAll();
+}
+
+// ── Load one city ─────────────────────────────────────────────────────────────
+async function loadCity(c, date) {
+  c.ready = false;
+  c.snapshots = [];
+  for (const id of Object.keys(c.markers)) { c.markers[id].remove(); delete c.markers[id]; }
+
+  const loadEl = document.getElementById(`loading-${c.cfg.id}`);
+  const barEl  = document.getElementById(`bar-${c.cfg.id}`);
+  const dimEl  = document.getElementById(`dim-${c.cfg.id}`);
+  loadEl.querySelector('.loading-label').textContent = `Loading ${c.cfg.id}…`;
+  loadEl.classList.remove('hidden');
+  barEl.style.width = '0%';
+  dimEl.classList.add('hidden');
+
+  try {
+    const resp = await fetch(`${c.cfg.id}/${date}.jsonl`);
+    if (!resp.ok) {
+      loadEl.querySelector('.loading-label').textContent = 'No recording for this date';
+      return;
+    }
+    const total  = parseInt(resp.headers.get('Content-Length') || '0');
+    const reader = resp.body.getReader(), dec = new TextDecoder();
+    let received = 0, buf = '', lines = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.length;
+      buf += dec.decode(value, { stream:true });
+      if (total) barEl.style.width = Math.round(received/total*100) + '%';
+      let nl;
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const ln = buf.slice(0,nl).trim();
+        if (ln) lines.push(ln);
+        buf = buf.slice(nl+1);
+      }
+    }
+    if (buf.trim()) lines.push(buf.trim());
+    barEl.style.width = '100%';
+    c.snapshots = lines.map(l => JSON.parse(l));
+    c.ready = true;
+  } catch(err) {
+    loadEl.querySelector('.loading-label').textContent = `Failed: ${err.message}`;
+    return;
+  }
+
+  loadEl.classList.add('hidden');
+  recalcTimeline();
+}
+
+// ── Load all cities in parallel ───────────────────────────────────────────────
+function loadAll(date) {
+  pause();
+  currentDate = date;
+  currentUTC  = 0; timelineMin = 0; timelineMax = 0;
+  document.getElementById('utc-clock').textContent = '--:--:-- UTC';
+  const label = date === '20260408' ? 'Tue 8 Apr 2026' : 'Tue 14 Apr 2026';
+  document.getElementById('page-title').textContent = `Nordic Transit · All Cities — ${label}`;
+  Object.values(cities).forEach(c => loadCity(c, date));  // parallel — M2 Max handles it
+}
+
+// ── Playback ──────────────────────────────────────────────────────────────────
+function tick() {
+  if (currentUTC >= timelineMax) { pause(); return; }
+  currentUTC += 30;
+  renderAll();
+}
+function play()  {
+  if (!Object.values(cities).some(c => c.ready)) return;
+  playing = true;
+  timer = setInterval(tick, Math.round(30000/speed));
+  document.getElementById('btn-play').textContent = '⏸';
+}
+function pause() {
+  playing = false; clearInterval(timer);
+  document.getElementById('btn-play').textContent = '▶';
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', () => {
+  pause(); currentUTC = timelineMin; renderAll();
+});
+document.getElementById('btn-prev').addEventListener('click', () => {
+  pause(); currentUTC = Math.max(timelineMin, currentUTC-30); renderAll();
+});
+document.getElementById('btn-play').addEventListener('click', () => playing ? pause() : play());
+document.getElementById('btn-next').addEventListener('click', () => {
+  pause(); currentUTC = Math.min(timelineMax, currentUTC+30); renderAll();
+});
+document.getElementById('btn-end').addEventListener('click', () => {
+  pause(); currentUTC = timelineMax; renderAll();
+});
+
+document.getElementById('scrubber').addEventListener('input', e => {
+  pause();
+  currentUTC = Math.round(timelineMin + parseInt(e.target.value)/10000 * (timelineMax-timelineMin));
+  renderAll();
+});
+
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    speed = parseInt(btn.dataset.speed);
+    if (playing) { clearInterval(timer); timer = setInterval(tick, Math.round(30000/speed)); }
+  });
+});
+
+document.querySelectorAll('.dataset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.dataset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadAll(btn.dataset.date);
+  });
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadAll('20260414');
+</script>
+</body>
+</html>
